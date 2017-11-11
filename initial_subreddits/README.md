@@ -11,8 +11,8 @@ Data:
 
 Outputs:
 - python parse_subreddits.py -> graph with >1M nodes representing subreddits. No edges. Node attributes:
-    - # of subscribers (subscribers, int)
-    - # UTC timestamp of creation date (created_utc, int)
+    - \# of subscribers (subscribers, int)
+    - \# UTC timestamp of creation date (created_utc, int)
     - Plaintext of subreddit description (description, str)
     - ID in pushshift database (id, str)
     - Language (lang, str)
