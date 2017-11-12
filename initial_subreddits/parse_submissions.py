@@ -8,95 +8,120 @@ import utils.progress as progress
 from subprocess import check_output
 from markdown import markdown
 from bs4 import BeautifulSoup
-
-def parse_args():
-    parser = argparse.ArgumentParser(description='Add submissions to Reddit mmnet.')
-    parser.add_argument('metagraph_file')
-    parser.add_argument('submission_directory')
-    parser.add_argument('output_file')
-    parser.add_argument('--previous_work')
-    args = parser.parse_args()
-    return vars(args)
-
-# If previous mmnet exists, load it. If new one, create its modes by reading the TNEANet of
-# basic subreddit info. Also return dict mapping subreddit IDs to their submission mode IDs.
-def setup_mmnet(subreddit_metagraph, prev_mmnet_file):
-    srids_to_mids 
-    if prev_mmnet_file == None:
-        mmnet = snap.TMMNet.New()
-        for NI in subreddit_metagraph.Nodes():
-            if subreddit_metagraph.GetIntAttrDatN(NI, 'subscribers') > 0:
-                name = graph.GetStrAttrDatN(NI, 'name') # e.g. t5_2y6r4, identifies subreddit throughout pushshift database
-                url = graph.GetStrAttrDatN(NI, 'url') # e.g. /r/politics, identifies subreddit on Reddit
-                mode_id = mmnet.AddModeNet('{}|{}|submissions'.format(name, url))
-                
-            
-    mmnet = (snap.TMMNet.Load(snap.TFIn(prev_mmnet_file)) if prev_mmnet_file != None else snap.TMMNet.New())
-            
-            
-
-
+                    
 def main():
     args = parse_args()
 
     print('Initializing mmnet...')
     subreddit_metagraph = snap.TNEANet.Load(snap.TFIn(args['metagraph_file']))
-    mmnet, srids_to_mids = setup_mmnet(subreddit_metagraph, args['previous_work'])
-    
-    
-    nsubreddits = int(check_output(['wc', '-l', subreddit_file]).split()[0])
-    subreddits = (json.loads(line) for line in open(subreddit_file))
-    graph = setup_graph()
-
-    print('Parsing {}...'.format(subreddit_file))
-    progress.init_progbar(nsubreddits)
-    for s in subreddits:
-        parse_subreddit(s, graph)
-        progress.report_progress()
-    progress.report_finished()
+    mmnet, srids_to_mids = setup_mmnet(subreddit_metagraph, args['previous_work'], args['top'], args['minsubs'])
+    parse_submissions(mmnet, srids_to_mids, args['submission_directory'])
 
     print('Saving...')
-    output = snap.TFOut('subreddits_basic.graph')
-    graph.Save(output)
+    output = snap.TFOut(args['output_file'])
+    mmnet.Save(output)
     output.Flush()
     print('Done')
+
+# Handle command-line args
+def parse_args():
+    parser = argparse.ArgumentParser(description='Add submissions to Reddit mmnet.')
+    parser.add_argument('metagraph_file', help='SNAP TNEANet file containing information about subreddits')
+    parser.add_argument('submission_directory', help='Directory storing files from which to read submissions')
+    parser.add_argument('output_file', help='Destination file for TMMNet')
+    parser.add_argument('--previous_work', help='Existing TMMNet file; pick up from a TMMNet already created')
+    parser.add_argument('--top', metavar='N', help='Only create MMNet using submissions from the top N subreddits'
+                        + ' by subscriber count', type=int, default=0)
+    parser.add_argument('--minsubs', metavar='M', help='Only create MMNet using subreddits with at least M'
+                        + ' subscribers', type=int, default=0)
+    args = parser.parse_args()
+    return vars(args)
+
+# If previous mmnet exists, load it. If new one, create its modes by reading the TNEANet of
+# basic subreddit info. Also return dict mapping subreddit IDs to their submission mode IDs.
+int_attrs = ['archived', 'created_utc', 'edited', 'gilded', 'is_self', 'num_comments',
+             'num_crossposts', 'over_18', 'pinned', 'retrieved_on', 'score']
+str_attrs = ['author', 'permalink', 'selftext', 'title', 'url']
+def setup_mmnet(subreddit_metagraph, prev_mmnet_file, top, minsubs):
+    acceptable = None
+    if top > 0: # Only consider top N subreddits by subscriber count
+        acceptable = set(sorted(((NI.GetId(), subreddit_metagraph.GetIntAttrDatN(NI, 'subscribers'))
+                                for NI in subreddit_metagraph.Nodes()), key=(lambda (nid, subs): -subs))[:top])
+        acceptable = [nid for (nid, subs) in acceptable]
+        
+    srids_to_mids = {}
+    if prev_mmnet_file == None:
+        mmnet = snap.TMMNet.New()
+        for NI in subreddit_metagraph.Nodes():
+            if subreddit_metagraph.GetIntAttrDatN(NI, 'subscribers') > minsubs \
+               and (acceptable == None or NI.GetId() in acceptable):
+                name = subreddit_metagraph.GetStrAttrDatN(NI, 'name') # e.g. t5_2y6r4, identifies subreddit throughout pushshift database
+                url = subreddit_metagraph.GetStrAttrDatN(NI, 'url') # e.g. /r/politics, identifies subreddit on Reddit
+                mode_id = mmnet.AddModeNet('{}|{}|submissions'.format(name, url))
+                for ia in int_attrs:
+                    mmnet.GetModeNetById(mode_id).AddIntAttrN(ia)
+                for sa in str_attrs:
+                    mmnet.GetModeNetById(mode_id).AddStrAttrN(sa)
+                srids_to_mids[name] = mode_id
+        return mmnet, srids_to_mids
+    else:
+        mmnet = snap.TMMNet.Load(snap.TFIn(prev_mmnet_file))
+        MI = mmnet.BegModeNetI()
+        while MI < mmnet.EndModeNetI():
+            sr_name = MI.GetModeName().split('|')[0] # pushshift subreddit identifier
+            srids_to_mids[sr_name] = MI.GetModeId()
+            MI.Next()
+        return mmnet, srids_to_mids
+
     
-strattrs = ['description', 'id', 'lang', 'name', 'public_description', 'submit_text', 'title', 'url']
-def setup_mmnet():
-    graph = snap.TNEANet.New()
-    graph.AddIntAttrN('subscribers')
-    for sa in strattrs:
-        graph.AddStrAttrN(sa)
-    return graph
-
-def parse_subreddit(sr, graph):
-    nid = graph.AddNode()
-    graph.AddIntAttrDatN(nid, sr['subscribers'], 'subscribers')
-    graph.AddIntAttrDatN(nid, sr['created_utc'], 'created_utc')
-    for sa in strattrs:
-        if not sr[sa]:
+def parse_submissions(mmnet, srids_to_mids, subdir):
+    subfiles = []
+    for fname in os.listdir(subdir):
+        path = os.path.join(subdir, fname)
+        if os.path.isdir(path): # skip subdirectories
             continue
-        if sa not in ['description', 'public_description']:
-            graph.AddStrAttrDatN(nid, sr[sa].lower(), sa) # Convert text to lowercase
-        else:
-            # parse description; convert markdown to plaintext; convert EOLs to spaces; convert text to lowercase
-            desc_markdown = sr[sa].replace('&gt;', '') # Catch HTML in /r/fantasypl
-            desc_html = markdown(desc_markdown)
-            
-            # TODO: decide how to handle unicode chars
-            desc_plaintext = (BeautifulSoup(desc_html, 'lxml').get_text())
-            desc_plaintext = desc_plaintext.replace('\n', ' ').encode('ascii', 'backslashreplace').lower()
-            graph.AddStrAttrDatN(nid, desc_plaintext, sa)
+        subfiles.append(path)
 
-            if sa == 'description':
-                # Get a list of subreddits this one mentions
-                mentioned_subreddits = set()
-                for tok in desc_plaintext.split():
-                    if tok.startswith('/r/'): # Get name by removing punctuation or garbage at the end
-                        mentioned_subreddit_name = re.split('[^a-zA-Z_]',tok[3:])[0] # get [a-zA-Z_] chars after '/r/'
-                        mentioned_subreddits.add('/r/' + mentioned_subreddit_name + '/')
-                graph.AddStrAttrDatN(nid, ' '.join(tok for tok in mentioned_subreddits), 'desc_subreddits')
+    print('Parsing submissions...')
+    for subfile in subfiles:
+        submissions = (json.loads(line) for line in open(subfile))
+        nsubs = int(check_output(['wc', '-l', subfile]).split()[0])
+        
+        progress.init_progbar(nsubs)                    
+        print(subfile)
+        for sub in submissions:
+            if sub['subreddit_id'] not in srids_to_mids: # Subreddit too small or post doesn't have subreddit
+                progress.report_progress()
+            else:
+                try:
+                    parse_one_submission(mmnet, srids_to_mids, sub)
+                except UnicodeEncodeError: # Some part of submission not representable in ascii. Skip
+                    pass
+                progress.report_progress()
+        progress.report_finished()
 
+
+def parse_one_submission(mmnet, srids_to_mids, sub):
+    mode = mmnet.GetModeNetById(srids_to_mids[sub['subreddit_id']])
+    nid = mode.AddNode()
+        
+    for ia in int_attrs:
+        if ia in sub:
+            mode.AddIntAttrDatN(nid, int(sub[ia]), ia)
                 
+        for sa in str_attrs:
+            if sa in sub:
+                if sa == 'selftext': # Parse to remove markdown
+                    selftext_markdown = sub[sa]
+                    selftext_html = markdown(selftext_markdown)
+                    selftext_plain = (BeautifulSoup(selftext_html, 'lxml').get_text().replace('\n', ' ')
+                                      .encode('ascii', 'backslashreplace').lower())
+                    mode.AddStrAttrDatN(nid, selftext_plain, sa)
+                elif sa in ('author', 'title'): # Not case-sensitive; change to lowercase
+                    mode.AddStrAttrDatN(nid, sub[sa].encode('ascii').lower(), sa)
+                else: # (post) permalink or (content) url; case-sensitive
+                    mode.AddStrAttrDatN(nid, sub[sa], sa)
+
+                    
 if __name__ == '__main__':
     main()

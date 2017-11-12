@@ -1,0 +1,4 @@
+*.graph
+*.pyc
+*.sjon
+*.DS_Store
