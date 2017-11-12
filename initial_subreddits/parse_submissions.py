@@ -41,7 +41,7 @@ def parse_args():
 # basic subreddit info. Also return dict mapping subreddit IDs to their submission mode IDs.
 int_attrs = ['archived', 'created_utc', 'edited', 'gilded', 'is_self', 'num_comments',
              'num_crossposts', 'over_18', 'pinned', 'retrieved_on', 'score']
-str_attrs = ['author', 'permalink', 'selftext', 'title', 'url']
+str_attrs = ['author', 'id', 'permalink', 'selftext', 'title', 'url']
 def setup_mmnet(subreddit_metagraph, prev_mmnet_file, top, minsubs):
     acceptable = None
     if top > 0: # Only consider top N subreddits by subscriber count
@@ -117,9 +117,9 @@ def parse_one_submission(mmnet, srids_to_mids, sub):
                     selftext_plain = (BeautifulSoup(selftext_html, 'lxml').get_text().replace('\n', ' ')
                                       .encode('ascii', 'backslashreplace').lower())
                     mode.AddStrAttrDatN(nid, selftext_plain, sa)
-                elif sa in ('author', 'title'): # Not case-sensitive; change to lowercase
+                elif sa in ('author', 'title', 'subreddit'): # Not case-sensitive; change to lowercase
                     mode.AddStrAttrDatN(nid, sub[sa].encode('ascii').lower(), sa)
-                else: # (post) permalink or (content) url; case-sensitive
+                else: # id (post) permalink or (content) url; case-sensitive
                     mode.AddStrAttrDatN(nid, sub[sa], sa)
 
                     

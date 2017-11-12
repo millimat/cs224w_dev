@@ -1,4 +1,6 @@
 *.graph
 *.pyc
-*.sjon
+*.json
 *.DS_Store
+*~
+#*
