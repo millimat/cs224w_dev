@@ -7,9 +7,11 @@ Before using:
 
 Data:
 - http://files.pushshift.io/reddit/subreddits/
-    - Download, unzip, and rename to subreddits.json
+    - Download; leave as `subreddits.gz`
 - http://files.pushshift.io/reddit/submissions/
-    - Download desired submissions, unzip, place in their own folder
+    - Download bz2 files for desired submissions; leave zipped; place in their own folder
+- http://files.pushshift.io/reddit/comments/
+    - Download bz2 files for comments from same time frame as submissions; leave zipped; place in their own folder
  
 Outputs:
 - python parse_subreddits.py -> graph with >1M nodes representing subreddits. No edges. Node attributes:
