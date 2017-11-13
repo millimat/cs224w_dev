@@ -7,9 +7,11 @@ Before using:
 
 Data:
 - http://files.pushshift.io/reddit/subreddits/
-    - Download, unzip, and rename to subreddits.json
+    - Download; leave as `subreddits.gz`
 - http://files.pushshift.io/reddit/submissions/
-    - Download desired submissions, unzip, place in their own folder
+    - Download bz2 files for desired submissions; leave zipped; place in their own folder
+- http://files.pushshift.io/reddit/comments/
+    - Download bz2 files for comments from same time frame as submissions; leave zipped; place in their own folder
  
 Outputs:
 - python parse_subreddits.py -> graph with >1M nodes representing subreddits. No edges. Node attributes:
@@ -37,7 +39,7 @@ Outputs:
     - `pinned` (`int`): 1 if post was pinned by a mod, 0 otherwise
     - `retrieved_on` (`int`): UTC timestamp for date of post retrieval
     - `score` (`int`): Post score    
-    - `id` (`str`): id by which post can be accessed in PushShift dataset
+    - `id` (`str`): Reddit post id. `t3_` + `id` is the ID of the submission in the PushShift dataset. `reddit.com/` + `id` will link to the post on Reddit.
     - `author` (`str`): username that created post, converted to lowercase
     - `permalink` (`str`): Where to access the post; prepend `https://reddit.com` to `permalink` field to access post
     - `selftext` (`str`): Plaintext of self post, stripped of Markdown and converted to lowercase ascii
