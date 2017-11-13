@@ -4,6 +4,7 @@ import re
 import os
 import sys
 import argparse
+import bz2
 import utils.progress as progress
 from subprocess import check_output
 from markdown import markdown
@@ -77,6 +78,8 @@ def setup_mmnet(subreddit_metagraph, prev_mmnet_file, top, minsubs):
 def parse_submissions(mmnet, srids_to_mids, subdir):
     subfiles = []
     for fname in os.listdir(subdir):
+        if fname.startswith('.') or fname.endswith('~'):
+            continue
         path = os.path.join(subdir, fname)
         if os.path.isdir(path): # skip subdirectories
             continue
@@ -84,44 +87,43 @@ def parse_submissions(mmnet, srids_to_mids, subdir):
 
     print('Parsing submissions...')
     for subfile in subfiles:
-        submissions = (json.loads(line) for line in open(subfile))
-        nsubs = int(check_output(['wc', '-l', subfile]).split()[0])
-        
+        print('\n' + subfile + ': fetching number of lines...')
+        nsubs = sum(1 for l in bz2.BZ2File(subfile))
+
+        print(subfile + ': parsing...')
+        submissions = (json.loads(line) for line in bz2.BZ2File(subfile))
         progress.init_progbar(nsubs)                    
-        print(subfile)
         for sub in submissions:
-            if sub['subreddit_id'] not in srids_to_mids: # Subreddit too small or post doesn't have subreddit
-                progress.report_progress()
-            else:
-                try:
-                    parse_one_submission(mmnet, srids_to_mids, sub)
-                except UnicodeEncodeError: # Some part of submission not representable in ascii. Skip
-                    pass
-                progress.report_progress()
+            if sub['subreddit_id'] in srids_to_mids: # else, subreddit too small or post doesn't have subreddit
+                parse_one_submission(mmnet, srids_to_mids, sub)
+            progress.report_progress()
         progress.report_finished()
 
 
 def parse_one_submission(mmnet, srids_to_mids, sub):
     mode = mmnet.GetModeNetById(srids_to_mids[sub['subreddit_id']])
     nid = mode.AddNode()
-        
-    for ia in int_attrs:
-        if ia in sub:
-            mode.AddIntAttrDatN(nid, int(sub[ia]), ia)
-                
-        for sa in str_attrs:
-            if sa in sub:
-                if sa == 'selftext': # Parse to remove markdown
-                    selftext_markdown = sub[sa]
-                    selftext_html = markdown(selftext_markdown)
-                    selftext_plain = (BeautifulSoup(selftext_html, 'lxml').get_text().replace('\n', ' ')
-                                      .encode('ascii', 'backslashreplace').lower())
-                    mode.AddStrAttrDatN(nid, selftext_plain, sa)
-                elif sa in ('author', 'title', 'subreddit'): # Not case-sensitive; change to lowercase
-                    mode.AddStrAttrDatN(nid, sub[sa].encode('ascii').lower(), sa)
-                else: # id (post) permalink or (content) url; case-sensitive
-                    mode.AddStrAttrDatN(nid, sub[sa], sa)
+    
+    try:
+        for ia in int_attrs:
+            if ia in sub:
+                mode.AddIntAttrDatN(nid, int(sub[ia]), ia)
 
+            for sa in str_attrs:
+                if sa in sub:
+                    if sa == 'selftext': # Parse to remove markdown
+                        selftext_markdown = sub[sa]
+                        selftext_html = markdown(selftext_markdown)
+                        selftext_plain = (BeautifulSoup(selftext_html, 'lxml').get_text().replace('\n', ' ')
+                                          .encode('ascii', 'backslashreplace').lower())
+                        mode.AddStrAttrDatN(nid, selftext_plain, sa)
+                    elif sa in ('author', 'title', 'subreddit'): # Not case-sensitive; change to lowercase
+                        mode.AddStrAttrDatN(nid, sub[sa].encode('ascii').lower(), sa)
+                    else: # id, permalink (for post) or url (for content); case-sensitive
+                        mode.AddStrAttrDatN(nid, sub[sa], sa)
+    except UnicodeEncodeError: # Some part of submission wasn't representable in ascii. Remove node
+        mode.DelNode(nid)
+        
                     
 if __name__ == '__main__':
     main()

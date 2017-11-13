@@ -1,15 +1,16 @@
 import snap
 import json
 import re
+import gzip
 import utils.progress as progress
-from subprocess import check_output
 from markdown import markdown
 from bs4 import BeautifulSoup
 
 def main():
-    subreddit_file = 'subreddits.json'
-    nsubreddits = int(check_output(['wc', '-l', subreddit_file]).split()[0])
-    subreddits = (json.loads(line) for line in open(subreddit_file))
+    subreddit_file = 'subreddits.gz'
+    print('Fetching number of lines in ' + subreddit_file + '...')
+    nsubreddits = sum(1 for l in gzip.open(subreddit_file))
+    subreddits = (json.loads(line) for line in gzip.open(subreddit_file))
     graph = setup_graph()
 
     print('Parsing {}...'.format(subreddit_file))
