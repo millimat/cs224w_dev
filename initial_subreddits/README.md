@@ -37,7 +37,7 @@ Outputs:
     - `pinned` (`int`): 1 if post was pinned by a mod, 0 otherwise
     - `retrieved_on` (`int`): UTC timestamp for date of post retrieval
     - `score` (`int`): Post score    
-    - `id` (`str`): id by which post can be accessed in PushShift dataset
+    - `id` (`str`): Reddit post id. `t3_` + `id` is the ID of the submission in the PushShift dataset. `reddit.com/` + `id` will link to the post on Reddit.
     - `author` (`str`): username that created post, converted to lowercase
     - `permalink` (`str`): Where to access the post; prepend `https://reddit.com` to `permalink` field to access post
     - `selftext` (`str`): Plaintext of self post, stripped of Markdown and converted to lowercase ascii
