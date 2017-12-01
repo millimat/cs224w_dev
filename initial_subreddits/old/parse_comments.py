@@ -15,7 +15,8 @@ def main():
 
     print('Initializing mmnet...')
     mmnet, srids_to_urls, srids_to_comment_mids, subids_to_nids = read_mmnet(args['mmnet'])
-    parse_comments(mmnet, srids_to_urls, srids_to_comment_mids, subids_to_nids, args['comment_directory'])
+    parse_comments(mmnet, args['output_text_file'], srids_to_urls, srids_to_comment_mids,
+                   subids_to_nids, args['comment_directory'])
 
     print('Saving...')
     output = snap.TFOut(args['output_file'])
@@ -29,15 +30,16 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Add comments to Reddit mmnet.')
     parser.add_argument('mmnet', help='SNAP TMMNet file containing info about subreddit submissions')
     parser.add_argument('comment_directory', help='Directory storing files from which to read comments')
-    parser.add_argument('output_file', help='Destination file for TMMNet')
+    parser.add_argument('output_graph_file', help='Destination file for TMMNet')
+    parser.add_argument('output_text_file', help='Destination file for comment text')
     args = parser.parse_args()
     return vars(args)
 
 
 # Load mmnet with submission info. Add modes for comments, and comment crossnets.
-int_attrs = ['controversiality', 'retrieved_on', 'distinguished', 'ups', 'downs', 'score',
+int_attrs = ['controversiality', 'retrieved_on', 'ups', 'downs', 'score',
              'archived', 'created_utc', 'gilded', 'edited']
-str_attrs = ['name', 'body', 'subreddit_id', 'link_id', 'parent_id', 'author']
+str_attrs = ['name', 'subreddit_id', 'link_id', 'parent_id', 'author', 'distinguished']
 def read_mmnet(mmnetfile):
     mmnet = snap.TMMNet.Load(snap.TFIn(mmnetfile))
     srids_to_submission_mids = {} # e.g. t5_2qgzg -> (submission mode id of /r/business)
@@ -72,7 +74,10 @@ def read_mmnet(mmnetfile):
     return mmnet, srids_to_urls, srids_to_comment_mids, subids_to_nids
 
 
-def parse_comments(mmnet, srids_to_urls, srids_to_comment_mids, subids_to_nids, comdir):
+def parse_comments(mmnet, comtextoutpath, srids_to_urls, srids_to_comment_mids, subids_to_nids, comdir):
+    comtextout = open(comtextoutpath, 'w')
+    comtextout.write('#Comment_mode_ID\tComment_node_ID\tComment_plaintext\n')
+    
     comfiles = []
     for fname in os.listdir(comdir):
         if fname.startswith('.') or fname.endswith('~'):
@@ -85,37 +90,27 @@ def parse_comments(mmnet, srids_to_urls, srids_to_comment_mids, subids_to_nids, 
     comids_to_nids = {} # comment id to node id in appropriate comment mode, e.g. t1_xxxxx -> 253
     print('Parsing comments...')
     for comfile in comfiles:
-        print('\n' + comfile + ': fetching number of lines...')
-        ncoms = sum(1 for l in bz2.BZ2File(comfile))
+#        print('\n' + comfile + ': fetching number of lines...')
+#        ncoms = sum(1 for l in bz2.BZ2File(comfile))
+        ncoms = 16350205
 
         print(comfile + ': parsing...')
         comments = (json.loads(line) for line in bz2.BZ2File(comfile))
         progress.init_progbar(ncoms)
         for com in comments:
-            parse_one_comment(mmnet, srids_to_urls, srids_to_comment_mids, subids_to_nids, comids_to_nids, com)
+            parse_one_comment(mmnet, comtextout, srids_to_urls, srids_to_comment_mids, subids_to_nids, comids_to_nids, com)
             progress.report_progress()
         progress.report_finished()
 
         
-def parse_one_comment(mmnet, srids_to_urls, srids_to_comment_mids, subids_to_nids, comids_to_nids, com):
+def parse_one_comment(mmnet, comtextout, srids_to_urls, srids_to_comment_mids, subids_to_nids, comids_to_nids, com):
     com_id = com['name']
     sr_id = com['subreddit_id'] # t5_xxxxx
     sub_id = com['link_id'] # t3_xxxxx
     parent_id = com['parent_id'] # t1_xxxxx (comment) if reply; t3_xxxxx (post) if top-level comment
     reply = parent_id.startswith('t1')
     
-    # If subreddit, submission, or parent comment not in mmnet, ignore comment
-#    print(sr_id)
-#    print(srids_to_comment_mids)
-#    print('')
-#    print(sub_id)
-#    print(subids_to_nids)
-#    print('')
-#    print(parent_id)
-#    print(comids_to_nids)
-#    print(reply)
-#    raw_input()
-    
+    # If subreddit, submission, or parent comment not in mmnet, ignore comment    
     if sr_id not in srids_to_comment_mids or sub_id not in subids_to_nids \
        or (reply and parent_id not in comids_to_nids):
         return
@@ -128,25 +123,26 @@ def parse_one_comment(mmnet, srids_to_urls, srids_to_comment_mids, subids_to_nid
     nid = comment_mode.AddNode()
     try:
         for ia in int_attrs:
-            if ia in com and com[ia] != None:
+            if ia in com:
                 comment_mode.AddIntAttrDatN(nid, int(com[ia]), ia)
         for sa in str_attrs:
             if sa in com:
-                if sa == 'body': # Convert markdown to plaintext
-                    body_markdown = com[sa]
-                    body_html = markdown(body_markdown)
-                    body_plain = (BeautifulSoup(body_html, 'lxml').get_text().replace('\n', ' ')
-                                  .encode('ascii', 'backslashreplace').lower())
-                    comment_mode.AddStrAttrDatN(nid, body_plain, sa)
-                elif sa == 'author': # Not case-sensitive; change to lowercase
+                if sa == 'author': # Not case-sensitive; change to lowercase
                     comment_mode.AddStrAttrDatN(nid, com[sa], sa)
                 else: # Case-sensitive; leave alone
-                    comment_mode.AddStrAttrDatN(nid, com[sa], sa)
+                    comment_mode.AddStrAttrDatN(nid, str(com[sa]), sa)
     except UnicodeEncodeError: # Comment unrepresentable in ascii; remove node and skip
         mode.DelNode(nid)
         return
 
-#    print(com)
+    # Add comment plaintext to comment text file
+    body_markdown = com['body']
+    body_plain = body_markdown.replace('\n', ' ').encode('ascii', 'backslashreplace').lower()
+#    body_html = markdown(body_markdown)
+#    body_plain = (BeautifulSoup(body_html, 'lxml').get_text().replace('\n', ' ')
+#                  .encode('ascii', 'backslashreplace').lower())
+    comtextout.write('{}\t{}\t{}\n'.format(comment_mid, nid, body_plain))
+    
     # Add comment-parent edge to proper crossnet
     comids_to_nids[com_id] = nid
     crossnet = mmnet.GetCrossNetByName('{}|{}|{}'.format(sr_id, sr_url, 'replies' if reply else 'top_level_comments'))

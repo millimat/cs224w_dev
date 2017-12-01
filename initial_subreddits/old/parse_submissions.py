@@ -6,9 +6,9 @@ import sys
 import argparse
 import bz2
 import utils.progress as progress
-from subprocess import check_output
-from markdown import markdown
-from bs4 import BeautifulSoup
+#from subprocess import check_output
+#from markdown import markdown
+#from bs4 import BeautifulSoup
                     
 def main():
     args = parse_args()
@@ -112,11 +112,12 @@ def parse_one_submission(mmnet, srids_to_mids, sub):
             for sa in str_attrs:
                 if sa in sub:
                     if sa == 'selftext': # Parse to remove markdown
-                        selftext_markdown = sub[sa]
-                        selftext_html = markdown(selftext_markdown)
-                        selftext_plain = (BeautifulSoup(selftext_html, 'lxml').get_text().replace('\n', ' ')
-                                          .encode('ascii', 'backslashreplace').lower())
-                        mode.AddStrAttrDatN(nid, selftext_plain, sa)
+                        pass
+                        # selftext_markdown = sub[sa]
+                        # selftext_html = markdown(selftext_markdown)
+                        # selftext_plain = (BeautifulSoup(selftext_html, 'lxml').get_text().replace('\n', ' ')
+                        #                   .encode('ascii', 'backslashreplace').lower())
+                        # mode.AddStrAttrDatN(nid, selftext_plain, sa)
                     elif sa in ('author', 'title', 'subreddit'): # Not case-sensitive; change to lowercase
                         mode.AddStrAttrDatN(nid, sub[sa].encode('ascii').lower(), sa)
                     else: # id, permalink (for post) or url (for content); case-sensitive
