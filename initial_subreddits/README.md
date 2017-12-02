@@ -27,7 +27,7 @@ Outputs:
     - `url` (`str`): Subreddit name, e.g. `/r/politics`
     - `desc_subreddits` (`str`): Space-separated list of subreddits mentioned in this subreddit's `description` field.
 - `python add_mention_links.py` -> creates directed edges between nodes based on description mentions
-- `Submissions and Comments to Tables.ipynb` will write all submissions and comments whose PushShift files are in the desired directory into tab-separated .txt files. Submission and comment files contain: author; subreddit/post/comment/ids; upvotes, downvotes, scores, and gold; creation timestamps; and associated text for NLP.
+- `Submissions and Comments to Tables.ipynb` will use the output of `parse_subreddit.py` and the PushShift comment/submission data to write all relevant submission and comment data into tab-separated .txt files. Submission and comment files contain: author; subreddit/post/comment/ids; upvotes, downvotes, scores, and gold; creation timestamps; and associated text for NLP.
 - `Tables to Post-Comment TNEANets.ipynb` will use the .txt files to create one TNEANet per subreddit containing nodes for all of the comments and posts captured from that subreddit. Node attributes:
     - `score` (`int`): Comment or post score
     - `gilded` (`int`): Number of times post or comment received Reddit Gold
