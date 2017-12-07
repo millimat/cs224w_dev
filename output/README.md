@@ -1,1 +1,1 @@
-All ouptut graphs, tables, etc. should be saved here.
+All output graphs, tables, etc. should be saved here.
